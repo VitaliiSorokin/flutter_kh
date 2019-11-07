@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'RalewayBold',
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Cats Viewer'),
+      home: const MainPage(title: 'Cats Viewer'),
     );
   }
 }
