@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dating_app/bloc/details_bloc/bloc.dart';
 import 'package:dating_app/models/user.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong/latlong.dart';
 import 'package:location_permissions/location_permissions.dart';
@@ -19,56 +21,58 @@ class DetailsPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(person.name),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Hero(
-              tag: 'avatar',
-              child: Image.network(
-                person.image,
-                fit: BoxFit.fill,
-                height: 400,
-                width: 400,
+      body: BlocProvider<DetailsBloc>(
+        create: (context) =>
+            DetailsBloc(user: person, fbUser: user)..add(GetDistance()),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Hero(
+                tag: 'avatar',
+                child: Image.network(
+                  person.image,
+                  fit: BoxFit.fill,
+                  height: 400,
+                  width: 400,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: FutureBuilder<LatLng>(
-                future: _getCoordinates(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    final km = const Distance().as(
-                        LengthUnit.Kilometer,
-                        snapshot.data,
-                        LatLng(person.latitude, person.longitude));
-                    return Text(
-                      '${person.name} is $km km away from you!',
-                      style: Theme.of(context).textTheme.headline,
-                    );
-                  } else if (snapshot.hasError) {
-                    return Text(
-                      'Please turn on the geolocation',
-                      style: Theme.of(context).textTheme.headline,
-                    );
-                  } else {
-                    return const CircularProgressIndicator();
-                  }
-                },
+              Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: BlocBuilder<DetailsBloc, DetailsState>(
+                      builder: (context, state) {
+                    if (state is DistanceCalculated) {
+                      return Text(
+                        '${person.name} is ${state.distance} km away from you!',
+                        style: Theme.of(context).textTheme.headline,
+                      );
+                    } else if (state is Error) {
+                      return Text(
+                        state.message,
+                        style: Theme.of(context).textTheme.headline,
+                      );
+                    } else {
+                      return const CircularProgressIndicator();
+                    }
+                  })),
+              BlocBuilder<DetailsBloc, DetailsState>(
+                builder: (context, state) => Ink(
+                  decoration: ShapeDecoration(
+                    color: Colors.red,
+                    shape: const CircleBorder(),
+                  ),
+                  child: IconButton(
+                    iconSize: 36,
+                    onPressed: () {
+                      BlocProvider.of<DetailsBloc>(context)
+                          .add(LikePerson(person: person));
+                    },
+                    icon: Icon(Icons.favorite),
+                  ),
+                ),
               ),
-            ),
-            Ink(
-              decoration: ShapeDecoration(
-                color: Colors.red,
-                shape: const CircleBorder(),
-              ),
-              child: IconButton(
-                iconSize: 36,
-                onPressed: () => _likeUser(),
-                icon: Icon(Icons.favorite),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

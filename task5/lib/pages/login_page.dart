@@ -1,6 +1,7 @@
+import 'package:dating_app/bloc/authentication_bloc/bloc.dart';
 import 'package:dating_app/pages/main_page.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class LoginPage extends StatelessWidget {
   LoginPage({Key key}) : super(key: key);
@@ -55,32 +56,26 @@ class LoginPage extends StatelessWidget {
   Future<void> _login(BuildContext context) async {
     final email = _emailController.text;
     final password = _passwordController.text;
-    final _auth = FirebaseAuth.instance;
     if (email != null && password != null) {
-      try {
-        final authResult = await _auth.signInWithEmailAndPassword(
-            email: email, password: password);
-        _navigateToMain(context, authResult);
-      } catch (err) {
-        // if (err == 'ERROR_USER_NOT_FOUND') {
-        final authResult = await _auth.createUserWithEmailAndPassword(
-            email: email, password: password);
-        _navigateToMain(context, authResult);
-        // } else {
-        print(err);
-        // }
-      }
+      BlocProvider.of<AuthenticationBloc>(context).add(
+        LoginWithCredentialsPressed(
+          email: email,
+          password: password,
+        ),
+      );
+      _navigateToMain(context);
     }
   }
 
-  void _navigateToMain(BuildContext context, AuthResult result) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute<void>(
-        builder: (context) => MainPage(
-          firebaseUser: result.user,
+  void _navigateToMain(BuildContext context) {
+    final state = BlocProvider.of<AuthenticationBloc>(context).state;
+    if (state is Authenticated) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => MainPage(firebaseUser: state.firebaseUser),
         ),
-      ),
-    );
+      );
+    }
   }
 }

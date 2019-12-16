@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dating_app/bloc/favorites_bloc/bloc.dart';
 import 'package:dating_app/models/user.dart';
 import 'package:dating_app/pages/details_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class FavoritesPage extends StatelessWidget {
   FavoritesPage({Key key, this.firebaseUser}) : super(key: key);
@@ -19,7 +21,7 @@ class FavoritesPage extends StatelessWidget {
               icon: Icon(Icons.arrow_back),
               onPressed: () => Navigator.pop(context, false),
             )),
-        body: _buildList());
+        body: _buildFavorites());
   }
 
   void _navigateTodetails(BuildContext context, User person) {
@@ -33,46 +35,34 @@ class FavoritesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildList() {
-    return FutureBuilder<List<User>>(
-      future: _getFavorites(),
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return GridView.builder(
-            itemCount: snapshot.data.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2),
-            itemBuilder: (BuildContext ctxt, int index) {
-              final person = snapshot.data[index];
-              return InkWell(
-                child: Image.network(person.image),
-                onTap: () => _navigateTodetails(ctxt, person),
+  Widget _buildFavorites() {
+    return Center(
+      child: BlocProvider<FavoritesBloc>(
+          create: (context) =>
+              FavoritesBloc()..add(GetFavorites(fbUser: firebaseUser)),
+          child: BlocBuilder<FavoritesBloc, FavoritesState>(
+              builder: (context, state) {
+            if (state is Loaded) {
+              return GridView.builder(
+                itemCount: state.favorites.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2),
+                itemBuilder: (BuildContext ctxt, int index) {
+                  final person = state.favorites[index];
+                  return InkWell(
+                    child: Image.network(person.image),
+                    onTap: () => _navigateTodetails(ctxt, person),
+                  );
+                },
               );
-            },
-          );
-        } else {
-          return const CircularProgressIndicator();
-        }
-      },
+            } else if (state is Error) {
+              return Center(child: Text(state.message));
+            }
+            return const Padding(
+              padding: EdgeInsets.all(150.0),
+              child: CircularProgressIndicator(),
+            );
+          })),
     );
-  }
-
-  Future<List<User>> _getFavorites() async {
-    final users = <User>{};
-    await databaseReference
-        .collection('user')
-        .document(firebaseUser.uid)
-        .collection('favorites')
-        .getDocuments()
-        .then((QuerySnapshot snapshot) {
-      for (var item in snapshot.documents) {
-        users.add(User(
-            item.data['location']['lat'],
-            item.data['location']['long'],
-            item.data['image'],
-            item.data['name']));
-      }
-    });
-    return users.toList();
   }
 }

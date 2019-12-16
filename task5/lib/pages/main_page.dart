@@ -1,14 +1,14 @@
-import 'dart:convert';
-
-import 'package:dating_app/models/user.dart';
+import 'package:dating_app/bloc/authentication_bloc/bloc.dart';
+import 'package:dating_app/bloc/user_bloc/bloc.dart';
 import 'package:dating_app/pages/details_page.dart';
 import 'package:dating_app/pages/favorites_page.dart';
 import 'package:dating_app/pages/login_page.dart';
-import 'package:dating_app/pages/user_buttons.dart';
+import 'package:dating_app/widgets/user_buttons.dart';
+import 'package:dating_app/widgets/user_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({Key key, this.firebaseUser}) : super(key: key);
@@ -18,12 +18,9 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  Future<User> _user;
-
   @override
   void initState() {
     super.initState();
-    _user = _generateUser();
   }
 
   @override
@@ -45,81 +42,60 @@ class _MainPageState extends State<MainPage> {
               }),
         ],
       ),
-      body: Center(
-        child: FutureBuilder<User>(
-            future: _user,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return SingleChildScrollView(
-                  child: Column(
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 80,
-                          top: 10,
-                          right: 10,
-                          bottom: 10,
+      body: BlocProvider<UserBloc>(
+        create: (context) => UserBloc()..add(GetUser()),
+        child: Center(
+            child: SingleChildScrollView(
+          child: Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: 80,
+                  top: 10,
+                  right: 10,
+                  bottom: 10,
+                ),
+                child: Text(
+                  ' logged in as ${widget.firebaseUser.email}',
+                  style: Theme.of(context).textTheme.body1,
+                ),
+              ),
+              BlocBuilder<UserBloc, UserState>(
+                builder: (context, state) {
+                  if (state is Loaded) {
+                    return UserImage(state.user);
+                  } else if (state is Error) {
+                    return Center(child: Text(state.message));
+                  }
+                  return const Padding(
+                    padding: EdgeInsets.all(150.0),
+                    child: CircularProgressIndicator(),
+                  );
+                },
+              ),
+              BlocBuilder<UserBloc, UserState>(
+                builder: (context, state) => UserButtons(
+                  onReload: () {
+                    BlocProvider.of<UserBloc>(context).add(GetUser());
+                  },
+                  onNext: () {
+                    final state = BlocProvider.of<UserBloc>(context).state;
+                    if (state is Loaded) {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (context) => DetailsPage(
+                              user: widget.firebaseUser, person: state.user),
                         ),
-                        child: Text(
-                          ' logged in as ${widget.firebaseUser.email}',
-                          style: Theme.of(context).textTheme.body1,
-                        ),
-                      ),
-                      Hero(
-                        tag: 'avatar',
-                        child: Image.network(
-                          snapshot.data.image,
-                          fit: BoxFit.fill,
-                          height: 300,
-                          width: 300,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24.0),
-                        child: Text(
-                          snapshot.data.name,
-                          style: Theme.of(context).textTheme.display1,
-                        ),
-                      ),
-                      UserButtons(
-                        onReload: () {
-                          setState(() {
-                            _user = _generateUser();
-                          });
-                        },
-                        onNext: () {
-                          Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (context) => DetailsPage(
-                                  person: snapshot.data,
-                                  user: widget.firebaseUser),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              } else if (snapshot.hasError) {
-                return const Text(
-                    'Something is wrong. Check your internet connection. :-(');
-              } else {
-                return const CircularProgressIndicator();
-              }
-            }),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        )),
       ),
     );
-  }
-
-  Future<User> _generateUser() async {
-    final uri = Uri.https('randomuser.me', '/api/1.3');
-    final response = await http.get(uri);
-    return compute(_parseUser, response.body);
-  }
-
-  static User _parseUser(String response) {
-    final Map<String, dynamic> parsed = json.decode(response);
-    return User.fromRandomUserResponse(parsed);
   }
 
   void _navigateToFavorites(BuildContext context, FirebaseUser fbUser) {
@@ -133,7 +109,7 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _signOut(BuildContext context) {
-    FirebaseAuth.instance.signOut();
+    BlocProvider.of<AuthenticationBloc>(context).add(LoggedOut());
     Navigator.pushReplacement(
       context,
       MaterialPageRoute<void>(
